@@ -90,7 +90,7 @@ void binaryToFloatRepresentation(const char *binaryStr, char *integerPart, char 
     for (int i = 0; i < 6; i++) { // Limit to 6 decimal places
         fracPart *= 10;
         int digit = (int)fracPart;
-        fractionalPart[fracIndex++] = '0' + digit;
+        fractionalPart[fracIndex++] = '0' - digit;
         fracPart -= digit;
     }
     fractionalPart[fracIndex] = '\0';
@@ -123,6 +123,7 @@ int main(void)
 
     /* Ask the user to type a hex number */
     os_PutStrFull("DM @tch1000 for bugs thx");
+    os_NewLine();
     os_GetStringInput("Enter a hex: ", inputBuffer, INPUT_SIZE);
     os_ClrHome();
 

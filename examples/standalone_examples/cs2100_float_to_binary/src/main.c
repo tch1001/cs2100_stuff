@@ -8,9 +8,16 @@
 #define INPUT_SIZE  20
 #define RESP_SIZE   100
 
+void show_bits(unsigned u, int num_bits, char *bitStr) {
+    for (int bit = 0; bit < num_bits; bit++) {
+        bitStr[bit] = (u & (1 << (num_bits - bit - 1))) ? '1' : '0';
+    }
+    bitStr[num_bits] = '\0';
+}
+
 void floatToBinary(int integerPart, int decimalPart, int leadingZeros, char *binaryStr) {
     unsigned int sign = 0, exponent = 0, mantissa = 0;
-    float absNum = integerPart + (float)decimalPart / pow(10, (int)log10(decimalPart) + 1 + leadingZeros);
+    double absNum;
     
     char floatStr[RESP_SIZE];
     if (leadingZeros > 0) {
@@ -19,14 +26,14 @@ void floatToBinary(int integerPart, int decimalPart, int leadingZeros, char *bin
         snprintf(floatStr, RESP_SIZE, "Float: %d.%d", integerPart, decimalPart);
     }
     os_PutStrFull(floatStr);
-    os_NewLine();
     // Determine the sign bit: 1 for negative, 0 for positive
     sign = (integerPart < 0) ? 1 : 0;
-    os_PutStrFull(sign ? "Sign: 1 (negative)" : "Sign: 0 (positive)");
+    os_PutStrFull(sign ? " Sign: 1 (-)" : " Sign: 0 (+)");
     os_NewLine();
 
-    // Normalize the absolute value of the number to the range [1, 2)
+    // Normalize the integer part to the range [1, 2)
     exponent = 0;
+    absNum = fabs((double)integerPart);
     while (absNum >= 2.0f) {
         absNum /= 2.0f;
         exponent++;
@@ -51,10 +58,7 @@ void floatToBinary(int integerPart, int decimalPart, int leadingZeros, char *bin
 
     // Convert and display the exponent with bias in binary
     char exponentBinary[9];
-    for (int i = 7; i >= 0; i--) {
-        exponentBinary[7 - i] = (exponent & (1 << i)) ? '1' : '0';
-    }
-    exponentBinary[8] = '\0';
+    show_bits(exponent, 8, exponentBinary);
     os_PutStrFull(exponentBinary);
     os_PutStrFull(")");
     os_NewLine();
@@ -70,7 +74,16 @@ void floatToBinary(int integerPart, int decimalPart, int leadingZeros, char *bin
             absNum -= 1.0f;
         }
     }
-    mantissa += 1; // Round up the mantissa
+
+    // Process the decimal part
+    double decimalValue = (double)decimalPart / pow(10, (int)log10(decimalPart) + 1 + leadingZeros);
+    for (int i = 0; i < 23; i++) {
+        decimalValue *= 2.0f;
+        if (decimalValue >= 1.0f) {
+            mantissa |= (1 << (22 - i));
+            decimalValue -= 1.0f;
+        }
+    }
 
     os_PutStrFull("M:");
     char mantissaStr[10];
@@ -80,21 +93,18 @@ void floatToBinary(int integerPart, int decimalPart, int leadingZeros, char *bin
 
     // Convert and display the mantissa in binary
     char mantissaBinary[24];
-    for (int i = 22; i >= 0; i--) {
-        mantissaBinary[22 - i] = (mantissa & (1 << i)) ? '1' : '0';
-    }
-    mantissaBinary[23] = '\0';
+    show_bits(mantissa, 23, mantissaBinary);
     os_PutStrFull(mantissaBinary);
     os_PutStrFull(")");
     os_NewLine();
 
     // Convert the sign, exponent, and mantissa to a binary string
     binaryStr[0] = sign ? '1' : '0';
-    for (int i = 7; i >= 0; i--) {
-        binaryStr[8 - i] = (exponentBinary[7 - i] == '1') ? '1' : '0';
+    for (int i = 0; i < 8; i++) {
+        binaryStr[1 + i] = exponentBinary[i];
     }
-    for (int i = 22; i >= 0; i--) {
-        binaryStr[31 - i] = (mantissaBinary[22 - i] == '1') ? '1' : '0';
+    for (int i = 0; i < 23; i++) {
+        binaryStr[9 + i] = mantissaBinary[i];
     }
     binaryStr[32] = '\0';
 }
