@@ -17,7 +17,6 @@ void show_bits(unsigned u, int num_bits, char *bitStr) {
 
 void floatToBinary(int integerPart, int decimalPart, int leadingZeros, char *binaryStr) {
     unsigned int sign = 0, exponent = 0, mantissa = 0;
-    double absNum;
     
     char floatStr[RESP_SIZE];
     if (leadingZeros > 0) {
@@ -26,23 +25,45 @@ void floatToBinary(int integerPart, int decimalPart, int leadingZeros, char *bin
         snprintf(floatStr, RESP_SIZE, "Float: %d.%d", integerPart, decimalPart);
     }
     os_PutStrFull(floatStr);
+    os_PutStrFull(" ");
+    char partsStr[RESP_SIZE];
+    snprintf(partsStr, RESP_SIZE, "(%d,%d,%d)", integerPart, decimalPart, leadingZeros);
+    os_PutStrFull(partsStr);
+    os_NewLine();
     // Determine the sign bit: 1 for negative, 0 for positive
     sign = (integerPart < 0) ? 1 : 0;
-    os_PutStrFull(sign ? " Sign: 1 (-)" : " Sign: 0 (+)");
+    os_PutStrFull(sign ? "Sign: 1 (-)" : "Sign: 0 (+)");
     os_NewLine();
 
+// 123.123
+// 123 246 492 984 968 936 872 744 488 976 952 904 808 616 232 464 928 856 712 424
+//     0   0   0   1   1   1   1   1   0   1   1   1   1   1   0   0   1   1   1
+// mantissa = 1.0001 001
+// exponent = 4
     // Normalize the integer part to the range [1, 2)
     exponent = 0;
-    absNum = fabs((double)integerPart);
-    while (absNum >= 2.0f) {
-        absNum /= 2.0f;
+    mantissa = 0;
+    while (integerPart >= 2) {
+        mantissa |= (integerPart & 1) << exponent;
+        integerPart /= 2;
         exponent++;
     }
-    while (absNum < 1.0f && absNum != 0.0f) {
-        absNum *= 2.0f;
-        exponent--;
-    }
+    mantissa |= (integerPart & 1) << exponent;
 
+    int decimalValue = decimalPart;
+    int decimalShift = (int)log10(decimalPart) + 1 + leadingZeros;
+    int powerOfTen = 1;
+    for (int j = 0; j < decimalShift; j++) {
+        powerOfTen *= 10;
+    }
+    for (int i = 0; i < 23 - exponent; i++) {
+        decimalValue *= 2;
+        mantissa <<= 1;
+        if (decimalValue >= powerOfTen) {
+            mantissa |= 1;
+            decimalValue -= powerOfTen;
+        }
+    }
     // Display the exponent without bias
     char exponentNoBiasStr[10];
     sprintf(exponentNoBiasStr, "%d", exponent);
@@ -63,27 +84,6 @@ void floatToBinary(int integerPart, int decimalPart, int leadingZeros, char *bin
     os_PutStrFull(")");
     os_NewLine();
 
-    // Remove the leading 1 for mantissa calculation
-    absNum -= 1.0f;
-    mantissa = 0;
-    // Calculate the mantissa by multiplying by 2 and checking the integer part
-    for (int i = 0; i < 23; i++) {
-        absNum *= 2.0f;
-        if (absNum >= 1.0f) {
-            mantissa |= (1 << (22 - i));
-            absNum -= 1.0f;
-        }
-    }
-
-    // Process the decimal part
-    double decimalValue = (double)decimalPart / pow(10, (int)log10(decimalPart) + 1 + leadingZeros);
-    for (int i = 0; i < 23; i++) {
-        decimalValue *= 2.0f;
-        if (decimalValue >= 1.0f) {
-            mantissa |= (1 << (22 - i));
-            decimalValue -= 1.0f;
-        }
-    }
 
     os_PutStrFull("M:");
     char mantissaStr[10];
