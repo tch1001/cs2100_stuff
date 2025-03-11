@@ -16,7 +16,7 @@ void show_bits(unsigned u, int num_bits, char *bitStr) {
 }
 
 void floatToBinary(int integerPart, int decimalPart, int leadingZeros, char *binaryStr) {
-    unsigned int sign = 0, exponent = 0, mantissa = 0;
+    int sign = 0, exponent = 0, mantissa = 0;
     
     char floatStr[RESP_SIZE];
     if (leadingZeros > 0) {
@@ -26,10 +26,10 @@ void floatToBinary(int integerPart, int decimalPart, int leadingZeros, char *bin
     }
     os_PutStrFull(floatStr);
     os_PutStrFull(" ");
-    char partsStr[RESP_SIZE];
-    snprintf(partsStr, RESP_SIZE, "(%d,%d,%d)", integerPart, decimalPart, leadingZeros);
-    os_PutStrFull(partsStr);
-    os_NewLine();
+    // char partsStr[RESP_SIZE];
+    // snprintf(partsStr, RESP_SIZE, "(%d,%d,%d)", integerPart, decimalPart, leadingZeros);
+    // os_PutStrFull(partsStr);
+    // os_NewLine();
     // Determine the sign bit: 1 for negative, 0 for positive
     sign = (integerPart < 0) ? 1 : 0;
     os_PutStrFull(sign ? "Sign: 1 (-)" : "Sign: 0 (+)");
@@ -39,16 +39,52 @@ void floatToBinary(int integerPart, int decimalPart, int leadingZeros, char *bin
 // 123 246 492 984 968 936 872 744 488 976 952 904 808 616 232 464 928 856 712 424
 //     0   0   0   1   1   1   1   1   0   1   1   1   1   1   0   0   1   1   1
 // mantissa = 1.0001 001
+// 59 
+// 118-64 = 54    (1)
+// 108-64 = 44    (1)
+// 88-64 = 24     (1)
+// 56             (0)
+// 112-64 = 48    (1)
+// 96-64 = 32     (1)
+// 64-64 = 0      (0)
 // exponent = 4
+    bool negativeExp = false;
+    if (integerPart == 0) {
+        negativeExp = true;
+    }
     // Normalize the integer part to the range [1, 2)
     exponent = 0;
     mantissa = 0;
-    while (integerPart >= 2) {
-        mantissa |= (integerPart & 1) << exponent;
-        integerPart /= 2;
+    int numShiftsLeftover = 23;
+    // Find the largest power of 2 that is still less than integerPart
+    int largestPowerOf2 = 1;
+    while ((largestPowerOf2 << 1) <= integerPart) {
+        largestPowerOf2 <<= 1;
         exponent++;
+        // os_PutStrFull("x");
     }
-    mantissa |= (integerPart & 1) << exponent;
+    // 85 - 64 = 21                  1
+    // 21*2 = 42                     0
+    // 42*2 = 84, 84 - 64 = 20       1
+    // 20*2 = 40                     0
+    // 40*2 = 80, 80 - 64 = 16       1
+    // 16*2 = 32                     0
+    // 32*2 = 64, 64 - 64 = 0        1
+    integerPart -= largestPowerOf2; // removing the 1.0 in 1.something
+    while (integerPart > 0 && numShiftsLeftover > 0) {
+        integerPart <<= 1;
+        mantissa <<= 1;
+        if (integerPart >= largestPowerOf2) {
+            mantissa |= 1;
+            integerPart -= largestPowerOf2;
+        }
+        numShiftsLeftover--;
+    }
+    // Print the mantissa in binaryString
+    // char temp[24];
+    // show_bits(mantissa, 23, temp);
+    // os_PutStrFull(temp);
+    // os_NewLine();
 
     int decimalValue = decimalPart;
     int decimalShift = (int)log10(decimalPart) + 1 + leadingZeros;
@@ -56,13 +92,22 @@ void floatToBinary(int integerPart, int decimalPart, int leadingZeros, char *bin
     for (int j = 0; j < decimalShift; j++) {
         powerOfTen *= 10;
     }
-    for (int i = 0; i < 23 - exponent; i++) {
+    if (negativeExp) {
+        // 125 
+        while (decimalValue <= powerOfTen) {
+            decimalValue <<= 1;
+            exponent--;
+        }
+        decimalValue -= powerOfTen;
+    }
+    while(numShiftsLeftover > 0) {
         decimalValue *= 2;
         mantissa <<= 1;
         if (decimalValue >= powerOfTen) {
             mantissa |= 1;
             decimalValue -= powerOfTen;
         }
+        numShiftsLeftover--;
     }
     // Display the exponent without bias
     char exponentNoBiasStr[10];
@@ -84,17 +129,28 @@ void floatToBinary(int integerPart, int decimalPart, int leadingZeros, char *bin
     os_PutStrFull(")");
     os_NewLine();
 
-
-    os_PutStrFull("M:");
-    char mantissaStr[10];
-    sprintf(mantissaStr, "%u", mantissa);
-    os_PutStrFull(mantissaStr);
-    os_PutStrFull("(");
+    os_PutStrFull("M:1.");
 
     // Convert and display the mantissa in binary
     char mantissaBinary[24];
     show_bits(mantissa, 23, mantissaBinary);
     os_PutStrFull(mantissaBinary);
+    os_PutStrFull("(");
+
+    // Convert mantissaBinary to decimal
+    float mantissaDecimal = 1.0;
+    float fraction = 0.5;
+    for (int i = 0; i < 23; i++) {
+        if (mantissaBinary[i] == '1') {
+            mantissaDecimal += fraction;
+        }
+        fraction /= 2;
+    }
+
+    // Print the mantissa in decimal
+    char mantissaDecimalStr[10];
+    sprintf(mantissaDecimalStr, "%.7f", mantissaDecimal);
+    os_PutStrFull(mantissaDecimalStr);
     os_PutStrFull(")");
     os_NewLine();
 
