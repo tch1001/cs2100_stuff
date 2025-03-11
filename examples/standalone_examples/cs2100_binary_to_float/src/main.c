@@ -90,7 +90,7 @@ void binaryToFloatRepresentation(const char *binaryStr, char *integerPart, char 
     for (int i = 0; i < 6; i++) { // Limit to 6 decimal places
         fracPart *= 10;
         int digit = (int)fracPart;
-        fractionalPart[fracIndex++] = '0' - digit;
+        fractionalPart[fracIndex++] = '0' + digit;
         fracPart -= digit;
     }
     fractionalPart[fracIndex] = '\0';
@@ -175,14 +175,56 @@ int main(void)
     snprintf(response, RESP_SIZE, "E: %u (%s)", exponent, exponentBinary);
     os_PutStrFull(response);
     os_NewLine();
+    // Convert mantissa binary to mantissa decimal
+    double mantissaDecimal = 1.0; // Start with the implicit leading 1
+    double fractionValue = 0.5; // The value of the first fractional bit (2^-1)
 
-    snprintf(response, RESP_SIZE, "M: %u (%s)", mantissa, mantissaBinary);
+    for (int i = 0; i < 23; i++) {
+        if (mantissaBinary[i] == '1') {
+            mantissaDecimal += fractionValue;
+        }
+        fractionValue /= 2.0; // Move to the next fractional bit (2^-2, 2^-3, etc.)
+    }
+
+    snprintf(response, RESP_SIZE, "M: %.10f", mantissaDecimal);
     os_PutStrFull(response);
     os_NewLine();
 
     /* Clear the homescreen and display the formatted output */
     snprintf(response, RESP_SIZE, "Float: %s.%s", integerPart, fractionalPart);
     os_PutStrFull(response);
+    os_NewLine();
+    /* Calculate and print the float in scientific notation */
+    double floatValue = mantissaDecimal;
+    int exponentValue = exponent - 127;
+    if (exponentValue > 0) {
+        for (int i = 0; i < exponentValue; i++) {
+            floatValue *= 2;
+        }
+    } else {
+        for (int i = 0; i < -exponentValue; i++) {
+            floatValue /= 2;
+        }
+    }
+    // Manually format the float value in scientific notation
+    char scientificNotation[RESP_SIZE];
+    int sciExponent = 0;
+
+    // Normalize the float value to the range [1, 10)
+    if (floatValue != 0.0) {
+        while (floatValue >= 10.0) {
+            floatValue /= 10.0;
+            sciExponent++;
+        }
+        while (floatValue < 1.0) {
+            floatValue *= 10.0;
+            sciExponent--;
+        }
+    }
+
+    // Format the float value and exponent into scientific notation
+    snprintf(scientificNotation, RESP_SIZE, "S: %.10fE%d", floatValue, sciExponent);
+    os_PutStrFull(scientificNotation);
 
     /* Waits for a key */
     while (!os_GetCSC());
