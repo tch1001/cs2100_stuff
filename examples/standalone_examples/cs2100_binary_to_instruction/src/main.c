@@ -52,7 +52,7 @@ void binaryToMIPSInstruction(const char *binaryStr, char *instruction, char *exa
         shamt[5] = '\0';
         strncpy(funct, binaryStr + 26, 6);
         funct[6] = '\0';
-        snprintf(instruction, RESP_SIZE, "R-type: opcode=%s, rs=%s(%d), rt=%s(%d), rd=%s(%d), shamt=%s(%d), funct=%s", opcode, rs, binaryStringToInt(rs), rt, binaryStringToInt(rt), rd, binaryStringToInt(rd), shamt, binaryStringToInt(shamt), funct);
+        snprintf(instruction, RESP_SIZE, "R-type: opcode=%s, rs=0b%s=%d, rt=0b%s=%d, rd=0b%s=%d, shamt=0b%s=%d, funct=0b%s", opcode, rs, binaryStringToInt(rs), rt, binaryStringToInt(rt), rd, binaryStringToInt(rd), shamt, binaryStringToInt(shamt), funct);
 
         // Hardcoded mappings for R-type functions
         if (strcmp(funct, "100000") == 0) {
@@ -87,7 +87,7 @@ void binaryToMIPSInstruction(const char *binaryStr, char *instruction, char *exa
         rt[5] = '\0';
         strncpy(immediate, binaryStr + 16, 16);
         immediate[16] = '\0';
-        snprintf(instruction, RESP_SIZE, "I-type: opcode=%s, rs=%s[%d], rt=%s[%d], immediate=%s", opcode, rs, binaryStringToInt(rs), rt, binaryStringToInt(rt), immediate);
+        snprintf(instruction, RESP_SIZE, "I-type: opcode=%s, rs=0b%s=%d, rt=0b%s=%d, immediate=0b%s", opcode, rs, binaryStringToInt(rs), rt, binaryStringToInt(rt), immediate);
 
         // Hardcoded mappings for I-type opcodes
         if (strcmp(opcode, "001000") == 0) {
@@ -137,6 +137,7 @@ int main(void)
 
     /* Ask the user to type a hex number */
     os_PutStrFull("DM @tch1000 for bugs thx");
+    os_NewLine();
     os_GetStringInput("Enter a hex: ", inputBuffer, INPUT_SIZE);
     os_ClrHome();
 
@@ -205,7 +206,19 @@ int main(void)
         rt[5] = '\0';
         strncpy(immediate, binaryStr + 16, 16);
         immediate[16] = '\0';
-        snprintf(response, RESP_SIZE, "%s %s, %s, %d", exactInstruction, registerNames[binaryStringToInt(rt)], registerNames[binaryStringToInt(rs)], binaryStringToInt(immediate));
+
+        if (strncmp(binaryStr, "001000", 6) == 0 || strncmp(binaryStr, "001100", 6) == 0 || 
+            strncmp(binaryStr, "001101", 6) == 0 || strncmp(binaryStr, "001110", 6) == 0 || 
+            strncmp(binaryStr, "001010", 6) == 0) { // addi, andi, ori, xori, slti
+            snprintf(response, RESP_SIZE, "%s %s, %s, %d", exactInstruction, registerNames[binaryStringToInt(rt)], registerNames[binaryStringToInt(rs)], binaryStringToInt(immediate));
+        } else if (strncmp(binaryStr, "000100", 6) == 0 || strncmp(binaryStr, "000101", 6) == 0) { // beq, bne
+            snprintf(response, RESP_SIZE, "%s %s, %s, %d", exactInstruction, registerNames[binaryStringToInt(rs)], registerNames[binaryStringToInt(rt)], binaryStringToInt(immediate));
+        } else if (strncmp(binaryStr, "001111", 6) == 0) { // lui
+            snprintf(response, RESP_SIZE, "%s %s, %d", exactInstruction, registerNames[binaryStringToInt(rt)], binaryStringToInt(immediate));
+        } else { // lw, sw
+            snprintf(response, RESP_SIZE, "%s %s, %d(%s)", exactInstruction, registerNames[binaryStringToInt(rt)], binaryStringToInt(immediate), registerNames[binaryStringToInt(rs)]);
+        }
+
         os_PutStrFull(response);
         os_NewLine();
     }
