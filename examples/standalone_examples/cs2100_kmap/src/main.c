@@ -13,14 +13,19 @@
 /* Macro to enable or disable debugging */
 #define DEBUG 1
 
+// Global variable for original minterms
+char *originalMinterms[MAX_COUNT];
+int originalMintermCount = 0;
+
 // Function prototypes
 void simplifySOP(char *minterms[], int count, char *xterms[], int xCount);
 char* MergeMinterms(const char *minterm1, const char *minterm2);
 int CheckDashesAlign(const char *minterm1, const char *minterm2);
 int CheckMintermDifference(const char *minterm1, const char *minterm2);
 void convertToExpressionFormat(char *primeImplicants[], int primeCount);
-void CreatePrimeImplicantChart(char *primeImplicants[], int primeCount, char *minterms[], int mintermCount, char *chart[]);
+void CreatePrimeImplicantChart(char *primeImplicants[], int primeCount, char *chart[]);
 void getEssentialPrimeImplicants(char *chart[], int chartSize, char *primeImplicants[], int primeCount, char *essentialPrimeImplicants[], int *essentialCount);
+void calculateNonEssentialPrimeImplicants(char *chart[], int chartSize, char *primeImplicants[], int primeCount, char *nonEssentialPrimeImplicants[], int *nonEssentialCount);
 
 void simplifySOP(char *minterms[], int count, char *xterms[], int xCount) {
     // Debug: Print the current level of recursion and the minterms being processed
@@ -34,108 +39,104 @@ void simplifySOP(char *minterms[], int count, char *xterms[], int xCount) {
     }
     #endif
 
-    // Step 1: Compute the prime implicants from the list of minterms and xterms
-    char *newMinterms[MAX_COUNT] = {NULL};
+    // Step 1: Compute the prime implicants from the list of minterms
+    char *primeImplicants[MAX_COUNT] = {NULL};
     int merges[MAX_COUNT] = {0};
     int numberOfMerges = 0;
-    int newCount = 0;
+    int primeCount = 0;
+
     for (int i = 0; i < count; i++) {
         for (int c = i + 1; c < count; c++) {
-            if (CheckDashesAlign(minterms[i], minterms[c]) && CheckMintermDifference(minterms[i], minterms[c])) {
-                char *mergedMinterm = strdup(MergeMinterms(minterms[i], minterms[c]));
-                
-                // Check for duplicate minterms before adding
+            char *minterm1 = minterms[i];
+            char *minterm2 = minterms[c];
+            if (CheckDashesAlign(minterm1, minterm2) && CheckMintermDifference(minterm1, minterm2)) {
+                char *mergedMinterm = strdup(MergeMinterms(minterm1, minterm2));
                 int isDuplicate = 0;
-                for (int j = 0; j < newCount; j++) {
-                    if (strcmp(newMinterms[j], mergedMinterm) == 0) {
+                for (int j = 0; j < primeCount; j++) {
+                    if (strcmp(primeImplicants[j], mergedMinterm) == 0) {
                         isDuplicate = 1;
                         break;
                     }
                 }
-
                 if (!isDuplicate) {
-                    // Debug: Print the merging process
-                    #if DEBUG
-                    dbg_printf("Merging minterms %s and %s into %s\n", minterms[i], minterms[c], mergedMinterm);
-                    #endif
-
-                    newMinterms[newCount++] = mergedMinterm;
+                    primeImplicants[primeCount++] = strdup(mergedMinterm);
                     numberOfMerges++;
                     merges[i] = 1;
                     merges[c] = 1;
-                } else {
-                    free(mergedMinterm);
                 }
             }
         }
     }
-    #if DEBUG
-    dbg_printf("Number of merges performed: %d\n", numberOfMerges);
-    #endif
-    // Append those that weren't merged
+
     for (int i = 0; i < count; i++) {
         if (!merges[i]) {
-            // Debug: Print the unmerged minterm
-            #if DEBUG
-            dbg_printf("Unmerged Minterm: %s\n", minterms[i]);
-            #endif
-
-            // Check for duplicate minterms before adding
             int isDuplicate = 0;
-            for (int j = 0; j < newCount; j++) {
-                if (strcmp(newMinterms[j], minterms[i]) == 0) {
+            for (int j = 0; j < primeCount; j++) {
+                if (strcmp(primeImplicants[j], minterms[i]) == 0) {
                     isDuplicate = 1;
                     break;
                 }
             }
-
             if (!isDuplicate) {
-                newMinterms[newCount++] = strdup(minterms[i]);
+                primeImplicants[primeCount++] = strdup(minterms[i]);
             }
         }
     }
 
-    // Check if all newMinterms are prime by attempting further simplification
-    if (numberOfMerges > 0) {
-        simplifySOP(newMinterms, newCount, xterms, xCount);
-    } else {
+    if (numberOfMerges == 0) {
         // If no merges were possible, all minterms are prime implicants
         #if DEBUG
         dbg_printf("All minterms are prime implicants:\n");
-        for (int k = 0; k < count; k++) {
-            if (!merges[k]) {
-                dbg_printf("Prime Implicant %d: %s (Pointer: %p)\n", k, minterms[k], (void*)minterms[k]);
-            }
+        for (int k = 0; k < primeCount; k++) {
+            dbg_printf("Prime Implicant %d: %s (Pointer: %p)\n", k, primeImplicants[k], (void*)primeImplicants[k]);
         }
         #endif
 
-        // Create a prime implicant chart
+        // Create a prime implicant chart using the original set of minterms
         char *chart[MAX_COUNT];
-        CreatePrimeImplicantChart(minterms, count, minterms, count, chart);
+        CreatePrimeImplicantChart(primeImplicants, primeCount, chart);
 
         // Get essential prime implicants
         char *essentialPrimeImplicants[MAX_COUNT];
         int essentialCount = 0;
-        getEssentialPrimeImplicants(chart, count, minterms, count, essentialPrimeImplicants, &essentialCount);
+        getEssentialPrimeImplicants(chart, originalMintermCount, primeImplicants, primeCount, essentialPrimeImplicants, &essentialCount);
+        dbg_printf("Essential Prime Implicants (EPI):");
+        dbg_printf("\n");
+        for (int i = 0; i < essentialCount; i++) {
+            dbg_printf("%s\n", essentialPrimeImplicants[i]);
+        }
 
         // Print essential prime implicants
         for (int i = 0; i < essentialCount; i++) {
             os_PutStrFull(essentialPrimeImplicants[i]);
             os_NewLine();
         }
+        os_NewLine();
+
+        // Calculate and print the non-essential prime implicants
+        char *nonEssentialPrimeImplicants[MAX_COUNT];
+        int nonEssentialCount = 0;
+        calculateNonEssentialPrimeImplicants(chart, originalMintermCount, primeImplicants, primeCount, nonEssentialPrimeImplicants, &nonEssentialCount);
+        dbg_printf("Non-Essential Prime Implicants (NEPI):");
+        dbg_printf("\n");
+        for (int i = 0; i < nonEssentialCount; i++) {
+            dbg_printf("%s\n", nonEssentialPrimeImplicants[i]);
+        }
 
         // Convert and print in SOP format
         convertToExpressionFormat(essentialPrimeImplicants, essentialCount);
 
         // Free chart memory
-        for (int i = 0; i < count; i++) {
+        for (int i = 0; i < originalMintermCount; i++) {
             free(chart[i]);
         }
+    } else {
+        simplifySOP(primeImplicants, primeCount, xterms, xCount);
     }
 
-    // Free allocated memory for newMinterms
-    for (int i = 0; i < newCount; i++) {
-        free(newMinterms[i]);
+    // Free allocated memory for primeImplicants
+    for (int i = 0; i < primeCount; i++) {
+        free(primeImplicants[i]);
     }
 }
 
@@ -234,26 +235,45 @@ void convertToExpressionFormat(char *primeImplicants[], int primeCount) {
     os_NewLine();
 }
 
-void CreatePrimeImplicantChart(char *primeImplicants[], int primeCount, char *minterms[], int mintermCount, char *chart[]) {
+void CreatePrimeImplicantChart(char *primeImplicants[], int primeCount, char *chart[]) {
+    #if DEBUG
+    dbg_printf("Original Minterms (columns) we are interested in:\n");
+    for (int j = 0; j < originalMintermCount; j++) {
+        dbg_printf("Minterm %d: %s\n", j, originalMinterms[j]);
+    }
+    #endif
     for (int i = 0; i < primeCount; i++) {
         char *primeImplicant = primeImplicants[i];
-        chart[i] = (char *)malloc(mintermCount + 1);
-        for (int j = 0; j < mintermCount; j++) {
+        chart[i] = (char *)malloc(originalMintermCount + 1);
+        for (int j = 0; j < originalMintermCount; j++) {
             int match = 1;
             size_t primeImplicantLength = strlen(primeImplicant);
+            size_t matchCount = 0;
             for (size_t k = 0; k < primeImplicantLength; k++) {
-                if (primeImplicant[k] != '-' && primeImplicant[k] != minterms[j][k]) {
-                    match = 0;
-                    break;
+                if (primeImplicant[k] == '-' || primeImplicant[k] == originalMinterms[j][k]) {
+                    matchCount++;
                 }
+            }
+            if (matchCount < primeImplicantLength) {
+                match = 0;
             }
             chart[i][j] = match ? '1' : '0';
         }
-        chart[i][mintermCount] = '\0';
+        chart[i][originalMintermCount] = '\0';
+        
+        #if DEBUG
+        dbg_printf("Chart row %d for prime implicant %s: %s\n", i, primeImplicants[i], chart[i]);
+        #endif
     }
 }
 
 void getEssentialPrimeImplicants(char *chart[], int chartSize, char *primeImplicants[], int primeCount, char *essentialPrimeImplicants[], int *essentialCount) {
+    #if DEBUG
+    dbg_printf("Prime Implicant Chart:\n");
+    for (int i = 0; i < primeCount; i++) {
+        dbg_printf("Prime Implicant %d: %s\n", i, chart[i]);
+    }
+    #endif
     *essentialCount = 0;
     for (int j = 0; j < chartSize; j++) {
         int count = 0;
@@ -266,6 +286,46 @@ void getEssentialPrimeImplicants(char *chart[], int chartSize, char *primeImplic
         }
         if (count == 1) {
             essentialPrimeImplicants[(*essentialCount)++] = primeImplicants[lastIndex];
+        }
+    }
+}
+
+void calculateNonEssentialPrimeImplicants(char *chart[], int chartSize, char *primeImplicants[], int primeCount, char *nonEssentialPrimeImplicants[], int *nonEssentialCount) {
+    *nonEssentialCount = 0;
+    int isEssential[MAX_COUNT] = {0};
+    int covered[MAX_COUNT] = {0};
+
+    // Mark essential prime implicants and the minterms they cover
+    for (int j = 0; j < chartSize; j++) {
+        int count = 0;
+        int lastIndex = -1;
+        for (int i = 0; i < primeCount; i++) {
+            if (chart[i][j] == '1') {
+                count++;
+                lastIndex = i;
+            }
+        }
+        if (count == 1) {
+            isEssential[lastIndex] = 1;
+            covered[j] = 1;
+        }
+    }
+
+    // Collect non-essential prime implicants that cover uncovered minterms
+    for (int j = 0; j < chartSize; j++) {
+        if (!covered[j]) {
+            for (int i = 0; i < primeCount; i++) {
+                if (!isEssential[i] && chart[i][j] == '1') {
+                    nonEssentialPrimeImplicants[(*nonEssentialCount)++] = primeImplicants[i];
+                    // Mark all minterms covered by this non-essential prime implicant
+                    for (int k = 0; k < chartSize; k++) {
+                        if (chart[i][k] == '1') {
+                            covered[k] = 1;
+                        }
+                    }
+                    break; // Choose only one non-essential implicant for this uncovered minterm
+                }
+            }
         }
     }
 }
@@ -304,6 +364,7 @@ int main(void)
         int mintermValue = atoi(token);
         convertToBinaryString(mintermValue, binaryMinterms[count], 6);
         minterms[count] = binaryMinterms[count];
+        originalMinterms[originalMintermCount++] = binaryMinterms[count];
         combinedTerms[combinedCount++] = binaryMinterms[count];
         count++;
         token = strtok(NULL, ",");
