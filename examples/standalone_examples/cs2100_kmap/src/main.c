@@ -69,16 +69,6 @@ void simplifySOP(char *minterms[], int count) {
     dbg_printf("Number of merges performed: %d\n", numberOfMerges);
     #endif
 
-    int nonMergedCount = 0;
-    for (int j = 0; j < count; j++) {
-        if (!merges[j]) {
-            nonMergedCount++;
-            #if DEBUG
-            dbg_printf("non-merged minterm found: %s (Pointer: %p)\n", minterms[j], (void*)minterms[j]);
-            #endif
-        }
-    }
-
     // Check if all newMinterms are prime by attempting further simplification
     if (numberOfMerges > 0) {
         simplifySOP(newMinterms, newCount);
@@ -98,6 +88,8 @@ void simplifySOP(char *minterms[], int count) {
                 os_NewLine();
             }
         }
+        // Convert and print in SOP format
+        convertToExpressionFormat(minterms, count);
     }
 
     // Free allocated memory for newMinterms
@@ -159,34 +151,40 @@ void convertToBinaryString(int number, char *binaryString, int length) {
 
 void convertToExpressionFormat(char *primeImplicants[], int primeCount) {
     char variables[] = "ABCDEF";
-    int effectiveVariables = 0;
+    int leadingZeros = 0;
+    int firstNonZeroIndex = -1;
+
+    // Determine the number of leading zeros
+    if (primeCount > 0) {
+        size_t len = strlen(primeImplicants[0]);
+        for (size_t j = 0; j < len; j++) {
+            if (primeImplicants[0][j] == '0') {
+                leadingZeros++;
+            } else {
+                firstNonZeroIndex = j;
+                break;
+            }
+        }
+    }
 
     for (int i = 0; i < primeCount; i++) {
         char term[20] = "";
-        int termVariables = 0;
         size_t len = strlen(primeImplicants[i]);
-        for (size_t j = 0; j < len; j++) {
+        for (size_t j = firstNonZeroIndex; j < len; j++) {
             if (primeImplicants[i][j] != '-') {
                 char var[3] = {variables[j], '\0', '\0'};
                 if (primeImplicants[i][j] == '0') {
                     var[1] = '\'';
                 }
                 strcat(term, var);
-                termVariables++;
             }
         }
         if (i > 0) {
             os_PutStrFull(" + ");
         }
         os_PutStrFull(term);
-        if (termVariables > effectiveVariables) {
-            effectiveVariables = termVariables;
-        }
     }
     os_NewLine();
-    char effectiveVarStr[50];
-    sprintf(effectiveVarStr, "Effective Variables: %d", effectiveVariables);
-    os_PutStrFull(effectiveVarStr);
 }
 
 int main(void)
