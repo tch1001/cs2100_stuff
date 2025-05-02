@@ -82,10 +82,12 @@ void simplifySOP(char *minterms[], int count, char *xterms[], int xCount) {
                         }
                     }
                     if (!isDuplicate) {
-                        primeImplicants[primeCount++] = strdup(mergedMinterm);
+                        primeImplicants[primeCount++] = mergedMinterm;
                         numberOfMerges++;
                         merges[i] = 1;
                         merges[c] = 1;
+                    } else {
+                        free(mergedMinterm);
                     }
                 }
             }
@@ -163,7 +165,16 @@ void simplifySOP(char *minterms[], int count, char *xterms[], int xCount) {
             // Prepare for the next iteration
             currentCount = primeCount;
             for (int i = 0; i < primeCount; i++) {
-                currentMinterms[i] = strdup(primeImplicants[i]);
+                int isDuplicate = 0;
+                for (int j = 0; j < i; j++) {
+                    if (strcmp(currentMinterms[j], primeImplicants[i]) == 0) {
+                        isDuplicate = 1;
+                        break;
+                    }
+                }
+                if (!isDuplicate) {
+                    currentMinterms[i] = strdup(primeImplicants[i]);
+                }
             }
         }
 
@@ -338,7 +349,7 @@ void getEssentialPrimeImplicants(char *chart[],
                 lastIndex = i;
             }
         }
-        if (count == 1) {
+        if (count == 1 && !isEssential[lastIndex]) { // Check if it's not already essential
             essentialPrimeImplicants[(*essentialCount)++] = primeImplicants[lastIndex];
             isEssential[lastIndex] = true;
         }
